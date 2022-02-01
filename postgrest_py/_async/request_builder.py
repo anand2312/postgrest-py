@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Type, TypeVar, Union
+from typing import Any, Dict, Generic, Optional, Type, TypeVar, Union
 
 from pydantic import BaseModel, ValidationError
 
@@ -149,3 +149,127 @@ class AsyncRequestBuilder:
             returning=returning,
         )
         return AsyncFilterRequestBuilder(self.session, self.path, method, json)
+
+
+_T = TypeVar("_T", bound=BaseModel)
+
+# The following are replicas of the normal classes above
+# Their only purpose is to ensure type-safety and provide good
+# editor autocompletion, when using pydantic BaseModels with queries.
+
+
+class _AsyncModelQueryRequestBuilder(Generic[_T], AsyncQueryRequestBuilder):
+    async def execute(self) -> APIResponse[_T]:
+        # super().execute(model=_T) has NOT been used here
+        # as pyright was raising errors for it.
+        r = await self.session.request(
+            self.http_method,
+            self.path,
+            json=self.json,
+        )
+        try:
+            return APIResponse[_T].from_http_request_response(r)
+        except ValueError as e:
+            raise APIError(r.json()) from e
+
+
+class _AsyncModelFilterRequestBuilder(BaseFilterRequestBuilder, _AsyncModelQueryRequestBuilder[_T]):  # type: ignore
+    def __init__(
+        self,
+        session: AsyncClient,
+        path: str,
+        http_method: str,
+        json: dict,
+    ) -> None:
+        BaseFilterRequestBuilder.__init__(self, session)
+        _AsyncModelQueryRequestBuilder[_T].__init__(
+            self, session, path, http_method, json
+        )
+
+
+class _AsyncModelSelectRequestBuilder(
+    BaseSelectRequestBuilder, _AsyncModelQueryRequestBuilder[_T]
+):
+    def __init__(
+        self,
+        session: AsyncClient,
+        path: str,
+        http_method: str,
+        json: dict,
+    ) -> None:
+        BaseSelectRequestBuilder.__init__(self, session)
+        _AsyncModelQueryRequestBuilder[_T].__init__(
+            self, session, path, http_method, json
+        )
+
+
+class _AsyncModelRequestBuilder(Generic[_T], AsyncRequestBuilder):
+    def select(
+        self,
+        *columns: str,
+        count: Optional[CountMethod] = None,
+    ) -> _AsyncModelSelectRequestBuilder[_T]:
+        method, json = pre_select(self.session, *columns, count=count)
+        return _AsyncModelSelectRequestBuilder[_T](self.session, self.path, method, json)
+
+    def insert(
+        self,
+        json: dict,
+        *,
+        count: Optional[CountMethod] = None,
+        returning: ReturnMethod = ReturnMethod.representation,
+        upsert: bool = False,
+    ) -> _AsyncModelQueryRequestBuilder[_T]:
+        method, json = pre_insert(
+            self.session,
+            json,
+            count=count,
+            returning=returning,
+            upsert=upsert,
+        )
+        return _AsyncModelQueryRequestBuilder[_T](self.session, self.path, method, json)
+
+    def upsert(
+        self,
+        json: dict,
+        *,
+        count: Optional[CountMethod] = None,
+        returning: ReturnMethod = ReturnMethod.representation,
+        ignore_duplicates: bool = False,
+    ) -> _AsyncModelQueryRequestBuilder[_T]:
+        method, json = pre_upsert(
+            self.session,
+            json,
+            count=count,
+            returning=returning,
+            ignore_duplicates=ignore_duplicates,
+        )
+        return _AsyncModelQueryRequestBuilder[_T](self.session, self.path, method, json)
+
+    def update(
+        self,
+        json: dict,
+        *,
+        count: Optional[CountMethod] = None,
+        returning: ReturnMethod = ReturnMethod.representation,
+    ) -> _AsyncModelFilterRequestBuilder[_T]:
+        method, json = pre_update(
+            self.session,
+            json,
+            count=count,
+            returning=returning,
+        )
+        return _AsyncModelFilterRequestBuilder[_T](self.session, self.path, method, json)
+
+    def delete(
+        self,
+        *,
+        count: Optional[CountMethod] = None,
+        returning: ReturnMethod = ReturnMethod.representation,
+    ) -> _AsyncModelFilterRequestBuilder[_T]:
+        method, json = pre_delete(
+            self.session,
+            count=count,
+            returning=returning,
+        )
+        return _AsyncModelFilterRequestBuilder[_T](self.session, self.path, method, json)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Type, TypeVar, Union
+from typing import Any, Dict, Generic, Optional, Type, TypeVar, Union
 
 from pydantic import BaseModel
 
@@ -149,3 +149,123 @@ class SyncRequestBuilder:
             returning=returning,
         )
         return SyncFilterRequestBuilder(self.session, self.path, method, json)
+
+
+_T = TypeVar("_T", bound=BaseModel)
+
+# The following are replicas of the normal classes above
+# Their only purpose is to ensure type-safety and provide good
+# editor autocompletion, when using pydantic BaseModels with queries.
+
+
+class _SyncModelQueryRequestBuilder(Generic[_T], SyncQueryRequestBuilder):
+    def execute(self) -> APIResponse[_T]:
+        # super().execute(model=_T) has NOT been used here
+        # as pyright was raising errors for it.
+        r = self.session.request(
+            self.http_method,
+            self.path,
+            json=self.json,
+        )
+        try:
+            return APIResponse[_T].from_http_request_response(r)
+        except ValueError as e:
+            raise APIError(r.json()) from e
+
+
+class _SyncModelFilterRequestBuilder(BaseFilterRequestBuilder, _SyncModelQueryRequestBuilder[_T]):  # type: ignore
+    def __init__(
+        self,
+        session: SyncClient,
+        path: str,
+        http_method: str,
+        json: dict,
+    ) -> None:
+        BaseFilterRequestBuilder.__init__(self, session)
+        _SyncModelQueryRequestBuilder[_T].__init__(self, session, path, http_method, json)
+
+
+class _SyncModelSelectRequestBuilder(
+    BaseSelectRequestBuilder, _SyncModelQueryRequestBuilder[_T]
+):
+    def __init__(
+        self,
+        session: SyncClient,
+        path: str,
+        http_method: str,
+        json: dict,
+    ) -> None:
+        BaseSelectRequestBuilder.__init__(self, session)
+        _SyncModelQueryRequestBuilder[_T].__init__(self, session, path, http_method, json)
+
+
+class _SyncModelRequestBuilder(Generic[_T], SyncRequestBuilder):
+    def select(
+        self,
+        *columns: str,
+        count: Optional[CountMethod] = None,
+    ) -> _SyncModelSelectRequestBuilder[_T]:
+        method, json = pre_select(self.session, *columns, count=count)
+        return _SyncModelSelectRequestBuilder[_T](self.session, self.path, method, json)
+
+    def insert(
+        self,
+        json: dict,
+        *,
+        count: Optional[CountMethod] = None,
+        returning: ReturnMethod = ReturnMethod.representation,
+        upsert: bool = False,
+    ) -> _SyncModelQueryRequestBuilder[_T]:
+        method, json = pre_insert(
+            self.session,
+            json,
+            count=count,
+            returning=returning,
+            upsert=upsert,
+        )
+        return _SyncModelQueryRequestBuilder[_T](self.session, self.path, method, json)
+
+    def upsert(
+        self,
+        json: dict,
+        *,
+        count: Optional[CountMethod] = None,
+        returning: ReturnMethod = ReturnMethod.representation,
+        ignore_duplicates: bool = False,
+    ) -> _SyncModelQueryRequestBuilder[_T]:
+        method, json = pre_upsert(
+            self.session,
+            json,
+            count=count,
+            returning=returning,
+            ignore_duplicates=ignore_duplicates,
+        )
+        return _SyncModelQueryRequestBuilder[_T](self.session, self.path, method, json)
+
+    def update(
+        self,
+        json: dict,
+        *,
+        count: Optional[CountMethod] = None,
+        returning: ReturnMethod = ReturnMethod.representation,
+    ) -> _SyncModelFilterRequestBuilder[_T]:
+        method, json = pre_update(
+            self.session,
+            json,
+            count=count,
+            returning=returning,
+        )
+        return _SyncModelFilterRequestBuilder[_T](self.session, self.path, method, json)
+
+    def delete(
+        self,
+        *,
+        count: Optional[CountMethod] = None,
+        returning: ReturnMethod = ReturnMethod.representation,
+    ) -> _SyncModelFilterRequestBuilder[_T]:
+        method, json = pre_delete(
+            self.session,
+            count=count,
+            returning=returning,
+        )
+        return _SyncModelFilterRequestBuilder[_T](self.session, self.path, method, json)
