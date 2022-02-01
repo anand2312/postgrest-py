@@ -173,7 +173,7 @@ class _SyncModelQueryRequestBuilder(Generic[_T], SyncQueryRequestBuilder):
             raise APIError(r.json()) from e
 
 
-class _SyncModelFilterRequestBuilder(Generic[_T], BaseFilterRequestBuilder, _SyncModelQueryRequestBuilder[_T]):  # type: ignore
+class _SyncModelFilterRequestBuilder(BaseFilterRequestBuilder, _SyncModelQueryRequestBuilder[_T]):  # type: ignore
     def __init__(
         self,
         session: SyncClient,

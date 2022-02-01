@@ -173,7 +173,7 @@ class _AsyncModelQueryRequestBuilder(Generic[_T], AsyncQueryRequestBuilder):
             raise APIError(r.json()) from e
 
 
-class _AsyncModelFilterRequestBuilder(Generic[_T], BaseFilterRequestBuilder, _AsyncModelQueryRequestBuilder[_T]):  # type: ignore
+class _AsyncModelFilterRequestBuilder(BaseFilterRequestBuilder, _AsyncModelQueryRequestBuilder[_T]):  # type: ignore
     def __init__(
         self,
         session: AsyncClient,
